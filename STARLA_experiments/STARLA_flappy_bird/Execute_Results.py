@@ -51,7 +51,11 @@ parser.add_argument("--s-number", type=int, default=0)
 args = parser.parse_args()
 s_number = args.s_number
 
-
+# 封装了 PLE（Python的游戏环境）并提供了一些方法来重置环境、执行动作并获取状态：
+# reset()：重置环境并返回初始观察状态。
+# step(action)：执行一个动作，记录状态转移、奖励、是否结束等信息。
+# set_state(state)：根据给定状态初始化游戏。
+# get_ple_state()：获取当前游戏的状态。
 class PLEStoreWrapper:
     """
     :param env: (gym.Env) Gym environment that will be wrapped
@@ -142,6 +146,7 @@ class PLEStoreWrapper:
         return np.array(s)
 
 
+# 判断当前状态是否为失败状态，主要通过检查一些状态变量（如速度、管道距离等）。
 def is_fail_state(state, epsilon=0):
     state = np.array(state)
     if state.ndim == 1:
@@ -170,6 +175,10 @@ def is_fail_state(state, epsilon=0):
     return False
 
 
+# 封装了 PyTorch 模型，提供了状态抽象、预测和动作概率计算的方法：
+# abstract_state(state1, d)：将状态映射到抽象状态。
+# predict(obs, deterministic=True)：根据观察值预测下一个动作。
+# action_probability(state)：返回每个动作的概率分布。
 class TorchModel():
     def __init__(self, torch_net: torch.nn.Module):
         self.torch_net = torch_net
@@ -199,6 +208,7 @@ class TorchModel():
         return q_value / q_value.sum()
 
 
+# 用于从训练记忆中进行抽样，以选择出具有特定特征（如功能故障或奖励故障）的回合。
 def proportional_sampling_whitout_replacement(index, size):
     s = 0
     s = sum(np.array(index))
@@ -207,6 +217,7 @@ def proportional_sampling_whitout_replacement(index, size):
     return samples
 
 
+# population_sample 和 episode_extract 函数用于从训练记忆中进行抽样，以选择出具有特定特征（如功能故障或奖励故障）的回合。
 def population_sample(episodes, ind, pop_size, random_test_size, threshold, functional_fault_size, reward_fault_size):
     """
     This function is meant to sample episodes from training after that you need to add test episodes using random_test
@@ -263,6 +274,7 @@ def population_sample(episodes, ind, pop_size, random_test_size, threshold, func
     return population, r_size
 
 
+# population_sample 和 episode_extract 函数用于从训练记忆中进行抽样，以选择出具有特定特征（如功能故障或奖励故障）的回合。
 def episode_extract(sampled_index, episodes):
     epis = []
     for i in sampled_index:
@@ -272,6 +284,7 @@ def episode_extract(sampled_index, episodes):
     return epis
 
 
+# 用于评估回合的质量，通常用于遗传算法或其他优化算法中。
 def fitness_reward(episode):
     """
     here the reward could be calculated as the lengh of the episode; Since the
@@ -281,6 +294,7 @@ def fitness_reward(episode):
     return len(episode) - 1
 
 
+# 用于评估回合的质量，通常用于遗传算法或其他优化算法中。
 def fitness_confidence(episode, model, mode):
     """
     confidence level is define as differences between the highest and
@@ -313,6 +327,7 @@ def fitness_confidence(episode, model, mode):
     print("WARNING nothing returned", episode)
 
 
+# 用于评估回合的质量，通常用于遗传算法或其他优化算法中。
 def fitness_reward_probability(ml, binary_episode):
     """
     This function returns the third fitness funciton that is ment to guide the search toward
@@ -327,6 +342,7 @@ def fitness_reward_probability(ml, binary_episode):
     return ml.predict_proba(binary_episode)[0][0]
 
 
+# 用于评估回合的质量，通常用于遗传算法或其他优化算法中。
 def fitness_functional_probability(ml, binary_episode):
     return ml.predict_proba(binary_episode)[0][0]
 
@@ -357,6 +373,7 @@ def state_abstraction(model, state1, state2, d):
 
 
 # report function to check the performance metrics of the model
+# 输出模型在训练和测试集上的性能指标（如准确率、召回率、精确率和混淆矩阵等）
 def report(model2, x_train, y_train, x_test, y_test):
     print("********************** reporting the result of the model **************************")
     print('The score for train data is {0}'.format(model2.score(x_train, y_train)))
@@ -422,6 +439,7 @@ def load_p(to_what, name):
         to_what = pickle.load(file2)
 
 
+# 运行模型进行测试，将环境重置并执行动作，记录奖励
 def random_test_1(model, env, Num):
     obs = env.reset()
     counter = 1
@@ -451,6 +469,7 @@ def random_test_1(model, env, Num):
     return randomtest, ran_state
 
 
+# 将训练过程中记录的回合（episodes）进行整理，确保每个回合的状态序列被正确分离。
 def fix_training(training_episodes, training_states):
     buffer = []
     episodes_set = []
@@ -472,6 +491,7 @@ def fix_training(training_episodes, training_states):
     return episodes_set, training_states
 
 
+# 与 fix_training 类似，但用于整理测试数据，确保测试状态的准确性。
 def fix_testing(testing_episodes, testing_states, Env2):
     buffer = []
     episodes_set = []
@@ -500,7 +520,7 @@ def fix_testing(testing_episodes, testing_states, Env2):
 
 # In[ ]:
 
-
+# 从回合中提取具体状态并进行抽象处理，生成独特的抽象状态。
 def Abstract_classes(ep, abstraction_d, model):
     d = abstraction_d
     abs_states1 = []
@@ -520,6 +540,7 @@ def Abstract_classes(ep, abstraction_d, model):
     return unique1, uni1
 
 
+# 生成用于机器学习模型的特征表示，包括状态的抽象和目标变量的生成
 def ML_first_representation(Abs_d, epsilon_functional_fault_boarder, uni1, model, ep, unique1):
     d = Abs_d
     epsilon = epsilon_functional_fault_boarder
@@ -557,6 +578,7 @@ def ML_first_representation(Abs_d, epsilon_functional_fault_boarder, uni1, model
 # In[ ]:
 
 
+# 遍历回合中的每个状态，提取其抽象状态并更新特征向量
 def translator(episode, model, d, unique5):
     """
     thid function takes the concrete episodes and returns the encoded episodes
@@ -593,6 +615,7 @@ def transform(state):
     return new_state
 
 
+# 对给定种群中的个体进行突变操作;选择一个父代进行突变，改变其某个状态，预测新的动作，并根据新的状态重新执行回合
 def mutation_improved(population, model, env, objective_uncovered):
     """
     This is the final mutation function
@@ -669,6 +692,7 @@ def mutation_improved_p(parent, model, env, m_rate):
         return re_executed_cand
 
 
+# 执行交叉操作生成新的个体。随机选择父代并找到匹配的个体，生成两个后代个体，并确保每个后代都有正确的初始状态。
 def Crossover_improved_v2(population, model, d, objective_uncovered):
     """
     This is the crossover function that we are using
@@ -736,6 +760,7 @@ def Crossover_improved_v2(population, model, d, objective_uncovered):
     return candid1, candid2
 
 
+
 def Crossover_improved_v2_random(population, model, d, objective_uncovered):
     found_match = False
     while not found_match:
@@ -779,6 +804,7 @@ def Crossover_improved_v2_random(population, model, d, objective_uncovered):
     return candid1, candid2
 
 
+# 根据给定的候选个体重新执行其回合，观察其表现。重置环境并设置状态，逐步执行每个动作，记录奖励并检查是否完成。
 def re_execute(model, env, candidate):
     obs = env.reset()
     obs = env.set_state(deepcopy(candidate.get_start_state()))
@@ -816,6 +842,8 @@ def re_execute(model, env, candidate):
     return info['mem'][-(int(episode_reward) + 1):]
 
 
+# 改进的重新执行方法，比较模型预测的动作和候选个体的动作，记录差异。
+# 在执行过程中，若模型的预测与候选个体的动作不同，则记录这些差异，帮助分析模型的行为。
 def re_execution_improved(model, env, candidate):
     differences = []
     episode_limit = 500
@@ -890,6 +918,7 @@ def re_execution_improved_v2(model, env, candidate):
 import numpy as np
 
 
+# 初始化候选个体的属性，包括候选值、目标值、覆盖的目标、拥挤距离、不确定性、起始状态和信息等。
 class Candidate:
     def __init__(self, candidates_vals):
         if isinstance(candidates_vals, (np.ndarray, np.generic)):
@@ -1003,6 +1032,7 @@ def mutation_number_update(file_address, Mut_Num_to_add, iteration):
 # In[ ]:
 
 
+# 
 scaler = preprocessing.StandardScaler()
 
 
@@ -1027,7 +1057,7 @@ def dominates(value_from_pop, value_from_archive, objective_uncovered):
 
 
 # calculating the fitness value function
-
+# # 用于评估种群中的每个候选个体并设置其目标值。
 def evaulate_population(func, pop, parameters):
     for candidate in pop:
         if isinstance(candidate, Candidate):
@@ -1036,6 +1066,7 @@ def evaulate_population(func, pop, parameters):
             print(candidate.get_objective_values())
 
 
+# # 用于评估种群中的每个候选个体并设置其目标值。
 def evaulate_population_with_archive(func, pop, already_executed):
     to_ret = []
     for candidate in pop:
@@ -1050,6 +1081,7 @@ def evaulate_population_with_archive(func, pop, already_executed):
     return to_ret
 
 
+# 检查某个目标是否已经在归档中
 def exists_in_archive(archive, index):
     for candidate in archive:
         if candidate.exists_in_satisfied(index):
@@ -1058,6 +1090,7 @@ def exists_in_archive(archive, index):
 
 
 # searching archive
+# 从归档中获取满足特定目标的候选个体
 def get_from_archive(obj_index, archive):
     for candIndx in range(len(archive)):
         candidate = archive[candIndx]
@@ -1067,6 +1100,7 @@ def get_from_archive(obj_index, archive):
 
 
 # updating archive with adding the number of objective it satisfies, Same as Mosa paper
+# 根据种群的目标值更新归档，添加新个体或替换旧个体
 def update_archive(pop, objective_uncovered, archive, no_of_Objectives, threshold_criteria):
     for objective_index in range(no_of_Objectives):
         for pop_index in range(len(pop)):
@@ -1093,6 +1127,7 @@ def update_archive(pop, objective_uncovered, archive, no_of_Objectives, threshol
 
 
 # method to get the most dominating one
+# 在给定的候选个体中选择最优者，使用支配关系进行比较
 def select_best(tournament_candidates, objective_uncovered):
     best = tournament_candidates[0]  # in case none is dominating other
     for i in range(len(tournament_candidates)):
@@ -1104,6 +1139,7 @@ def select_best(tournament_candidates, objective_uncovered):
     return best
 
 
+# 使用锦标赛选择策略从种群中选择个体，基于目标值的支配关系
 def tournament_selection_improved(pop, size, objective_uncovered):
     tournament_candidates = []
     for i in range(size):
@@ -1115,6 +1151,7 @@ def tournament_selection_improved(pop, size, objective_uncovered):
     return best;
 
 
+# 使用锦标赛选择策略从种群中选择个体，基于目标值的支配关系
 def tournament_selection(pop, size, objective_uncovered):
     tournament_candidates = []
     for i in range(size):
@@ -1126,6 +1163,7 @@ def tournament_selection(pop, size, objective_uncovered):
     return best;
 
 
+# 生成新一代个体，结合了交叉和突变操作。
 def generate_offspring_improved(population, model, env, d, objective_uncovered):
     population_to_return = []
     probability_C = 0.75
@@ -1165,6 +1203,7 @@ def generate_offspring_improved_v2(population, model, env, d, objective_uncovere
     return population_to_return
 
 
+# 保存满足特定条件的个体，避免重复数据的生成。归档机制确保了在多代中保存优质个体
 def save_all_data(pop, no_of_Objectives, threshold_criteria, stored_data):
     '''
     This function will save all individulas with objective lower than treshhold
@@ -1236,6 +1275,10 @@ def Build_Archive(pop, no_of_Objectives, threshold_criteria, stored_data, initia
 
 
 # finding best candidates and assigning to each front
+# 对种群 R_T 进行非支配排序，将候选个体分配到不同的前沿（front）。
+# 通过两层循环比较所有个体，检查其中一个个体是否支配另一个个体。
+# 如果一个个体支配另一个个体，则将其添加到当前的前沿中。
+# 如果没有任何个体支配其他个体，则将剩余的个体作为最后一个前沿返回。
 def fast_dominating_sort(R_T, objective_uncovered):
     to_return = []
     front = []
@@ -1275,6 +1318,7 @@ def fast_dominating_sort(R_T, objective_uncovered):
 
 
 # sorting based on crowding distance
+# 返回个体的拥挤距离
 def sort_based_on_crowding_distance(e):
     values = e.get_crowding_distance()
     return values
@@ -1286,12 +1330,16 @@ def sort_based_on(e):
 
 
 # sorting based on first objective value
+# 根据第一个目标值对种群进行排序，逆序排列
 def sort_worse(pop):
     pop.sort(key=sort_based_on, reverse=True)
     return pop
 
 
 # preference sort, same as algorithm
+# 根据未覆盖的目标对候选个体进行排序。
+# 对于每个未覆盖的目标，找到当前种群中对应目标值最小的个体并将其添加到返回列表中。
+# 如果还有未排序的个体，则调用 fast_dominating_sort 进行进一步的处理。
 def preference_sort(R_T, size, objective_uncovered):
     to_return = []
     for objective_index in objective_uncovered:
@@ -1326,13 +1374,18 @@ def get_array_for_crowding_distance(sorted_front):
 
 
 # method to assign each candidate its crownding distance
-
+# 将计算出的拥挤距离分配给对应的个体。
 def assign_crowding_distance_to_each_value(sorted_front, crowding_distance):
     for candidate_index in range(len(sorted_front)):
         objective_values = sorted_front[candidate_index]
         objective_values.set_crowding_distance(crowding_distance[candidate_index])
 
 
+# 执行多目标优化的主循环，生成后代并更新种群和归档。
+# 初始化种群和目标，进行初始评估并更新归档。
+# 在每一代中，生成后代，评估后代并更新归档。
+# 使用偏好排序选择最优个体，并根据拥挤距离进行进一步选择。
+# 直到所有目标都被覆盖或达到最大迭代次数。
 def run_search(func, initial_population, no_of_Objectives, criteria, archive, logger, start, time_budget, size, d, env,
                parameters, second_archive, gens):
     global MUTATION_NUMBER
@@ -1448,6 +1501,7 @@ def run_search(func, initial_population, no_of_Objectives, criteria, archive, lo
         P_T = P_T_1  # assigning PT+1 to PT
 
 
+# 作为入口函数，调用 run_search 开始优化过程
 def minimize(func, population, lb, ub, no_of_Objectives, criteria, time_budget, logger, archive, size, d, env,
              parameters, second_archive, gens):
     assert hasattr(func, '__call__')
@@ -1485,6 +1539,9 @@ class CartPole_caseStudy():
         return to_ret
 
 
+# 执行优化过程，使用 CartPole_caseStudy 的 _evaluate 方法评估种群。
+# 初始化日志记录。
+# 调用 minimize 函数进行优化，记录迭代完成的信息和突变次数。
 def run(i, population, archive, second_archive, gens):
     env = env2
     d = DD
@@ -1519,6 +1576,7 @@ def run(i, population, archive, second_archive, gens):
 # In[2]:
 
 
+# 计算结果之间的差异，返回总差异。
 def analyze_result(result):
     '''
     this function is to aggrigate the differences of the results
@@ -1534,6 +1592,7 @@ def analyze_result(result):
     return total_dif  # , store_diff
 
 
+# 计算并设置种群中每个候选体的目标值，返回每个目标的列表。
 def get_objective_distribution_and_set_candidate_objectives(population, model, d,
                                                             unique1, RF_FF_1rep,
                                                             RF_RF_1rep):
@@ -1557,6 +1616,7 @@ def get_objective_distribution_and_set_candidate_objectives(population, model, d
     return fit1_list, fit2_list, fit3_list, fit4_list
 
 
+# 从结果中提取差异的数量和其他相关信息。
 def get_objective_distribution(population, model, d, unique1, RF_FF_1rep, RF_RF_1rep):
     fit1_list = []
     fit2_list = []
@@ -1600,6 +1660,7 @@ def analyze_set_differences(differences_set):
     return analyzed_results
 
 
+# 对给定的解决方案集执行重执行，提高评估的可靠性，返回差异和奖励。
 def extract_differences(solution_set):
     '''
     input is a set of solutions like archive or second_archive

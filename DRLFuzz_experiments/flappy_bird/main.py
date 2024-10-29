@@ -11,6 +11,7 @@ sys.setrecursionlimit(10000000)
 os.environ['SDL_VIDEODRIVER'] = "dummy"
 os.environ['CUDA_VISIBLE_DEVICES'] = "0"
 
+# 定义了一个Pytorch神经网络，用于学习Flappy Bird游戏
 class model(torch.nn.Module):
     def __init__(self):
         super().__init__()
@@ -29,6 +30,8 @@ class model(torch.nn.Module):
         output = self.fc4(output)
         return output
 
+# Test 函数用于测试一组给定游戏的初始参数（管道高度，间距，鸟的下落速度等）
+# 在测试过程中，如果当前游戏状态与之前的状态差异较大，则将其加入到一个状态集合”allStates“之中
 def test(arg):
     pipe1 = arg[0]
     pipe2 = arg[1]
@@ -75,6 +78,8 @@ def test(arg):
               ]
     return p.score()+5
 
+# mutator函数用于”变异“，用于对导致游戏”失败“的参数组合进行变异，从而生成新的"测试用例（也就是初始状态）"。
+# 利用"梯度信息"来指导参数的变异方向和大小
 def mutator(arg, l):
     pipe1 = arg[0]
     pipe2 = arg[1]
@@ -139,6 +144,12 @@ def mutator(arg, l):
     vel = max(min(vel, 10), -56)
     return [pipe1, pipe2, dist, vel]
 
+# DRLFuzz函数是主函数,实现了完整的模糊测试循环:
+# 首先随机生成一批初始测试用例(参数组合)。
+# 对每个测试用例,用test函数测试模型的得分。
+# 对得分低于阈值theta的测试用例,记录到失败用例集合resultPool中。
+# 利用变异器mutator对表现较差的一部分测试用例进行变异,生成新的测试用例;其余的测试用例则重新随机生成。
+# 循环执行上述过程,不断增加失败用例集合resultPool的大小,直到达到预设的迭代次数。
 def DRLFuzz(num, n, l, alpha, theta, coverage):
     global kdTree
     statePool = list()
@@ -174,6 +185,7 @@ def DRLFuzz(num, n, l, alpha, theta, coverage):
                 statePool[idx[i]] = randFun(coverage)
     return resultPool
     
+# 用于随机生成测试用例。如果coverage
 def randFun(coverage):
     if coverage:
         global delta
